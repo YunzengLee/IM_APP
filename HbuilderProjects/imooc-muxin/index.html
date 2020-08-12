@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+    <!--content中的内容是让页面自动适应手机端，不用care-->
+    <title></title>
+    <script src="js/mui.min.js"></script>
+    <link href="css/mui.min.css" rel="stylesheet"/>
+    <link href="css/header.css" rel="stylesheet"/>
+    <link rel="stylesheet" type="text/css" href="fontico/iconfont.css"/> <!--导入icon样式，详见fontico/demo_index.html中 的使用说明-->
+    <script type="text/javascript" charset="utf-8">
+      	mui.init();
+      	
+      	
+    	mui.plusReady(function(){
+    		plus.navigator.setStatusBarStyle("light");//系统状态栏字体颜色，设为明亮
+    		plus.navigator.setStatusBarBackground("c9394a");//系统状态栏背景颜色
+    	});   //plus指我们的设备,Ready代表就绪,这个plusReady函数指设备就绪后可以进行一系列的操作.
+    </script>
+</head>
+<body>
+	
+	<header class="mui-bar mui-bar-nav title">
+	    <h1 class="mui-title title-color" id="muxin_title"><b>慕信</b></h1>  <!--这是微信页面上方的标题栏-->
+	</header>
+	
+	
+	<nav class="mui-bar mui-bar-tab">
+	    <a class="mui-tab-item mui-active" tabidx="0">  <!--此处的mui-active 代表选中状态-->
+	        <span class="iconfont icon-hot"></span>  <!--此处使用的是从iconfont上下载的图标，将原来的class内容作了替换-->
+	        <span class="mui-tab-label">慕信</span>
+	    </a>
+	    <a class="mui-tab-item" tabidx="1">
+	        <span class="iconfont icon-cedaohang-tongxunlu"></span> 
+	        <span class="mui-tab-label">通讯录</span>
+	    </a>
+	    <a class="mui-tab-item" tabidx="2">
+	        <span class="iconfont icon-zhinanzhen1"></span>
+	        <span class="mui-tab-label">发现</span>
+	    </a>
+	    <a class="mui-tab-item" tabidx="3">
+	        <span class="iconfont icon-wode"></span>
+	        <span class="mui-tab-label">我的</span>
+	    </a>
+	</nav>
+	
+	<script type="text/javascript">
+			var muxinArray = [
+				{
+					pageId: "imooc-chatlist.html",
+					pageUrl: "imooc-chatlist.html"
+				},
+				{
+					pageId: "imooc-contact.html",
+					pageUrl: "imooc-contact.html"
+				},
+				{
+					pageId: "imooc-discover.html",
+					pageUrl: "imooc-discover.html"
+				},
+				{
+					pageId: "imooc-me.html",
+					pageUrl: "imooc-me.html"
+				}
+			];
+			
+			
+			var muxinStyle = {   //设置子webview的样式，顶部留44px 底部留50px的空白，保证不会遮挡头部标题栏和底部导航栏
+				top:"44px",
+				bottom:"50px"
+			}
+			
+			mui.plusReady(function(){
+				
+				//打开app最先看到是登录，登录后进入index页面，此页面上按手机返回就会回到登录页，需要解决这个问题
+				mui.back = function(){
+					return false;
+				}//重写了mui的back方法，让index页面下的手机返回键失效。
+				
+				//对网络连接进行事件监听
+				netChangeSwith();
+				
+				//获取当前的webview对象
+				var indexWebview = plus.webview.currentWebview();
+				
+				//向当前的主页webview追加四个子webview对象
+				for(var i = 0;i<muxinArray.length;i++){
+					var muxinPage = plus.webview.create(
+						muxinArray[i].pageUrl,
+						muxinArray[i].pageId,
+						muxinStyle);
+					//隐藏刚创建 的webview窗口
+					muxinPage.hide();
+					//追加每一个子页面到当前的主页面
+					indexWebview.append(muxinPage);				
+				}
+				plus.webview.show(muxinArray[0].pageId);//显示默认页面 也就是聊天页面
+				
+				
+				// 批量绑定tap事件，展示不同的webview
+				mui(".mui-bar-tab").on("tap","a",function(){  //mui是选择器，.mui-bar-tab是nav的class，
+					                                           // on是批量绑定，事件为tap，标签为a
+					//获取当前a标签里的属性
+					var tabidx = (this.getAttribute("tabidx"));
+					//显示点击的tab选项对应的页面
+					plus.webview.show(muxinArray[tabidx].pageId,"fade-in",200);
+				
+					//隐藏其他不需要的页面
+					for(var i = 0;i<muxinArray.length;i++){
+						if(i != tabidx){
+							plus.webview.hide(muxinArray[i].pageId,"fade-out",200);
+						}
+					}
+				})
+				
+				
+				setTimeout("initData()","1000");//1000毫秒
+			});
+			
+			function initData(){
+				//触发两个页面的refresh事件，刷新信息。
+				var imooc_chatlist = plus.webview.getWebviewById("imooc-chatlist.html");
+				mui.fire(imooc_chatlist,"refresh");//触发该页面的refresh是因为该页面为refresh绑定了获取好友请求列表的事件。
+				
+				var imooc_me = plus.webview.getWebviewById("imooc-me.html");	
+				mui.fire(imooc_me,"refresh");//该页面为refresh绑定了刷新头像的事件。
+				
+			}
+			
+			//监听网络的状态更改
+			function netChangeSwith(){
+				document.addEventListener("netchange",function(){
+					// 判断网络的状态，本函数会返回一个数字代表网络的状态，
+						var connectionStatus = plus.networkinfo.getCurrentType();
+						if (connectionStatus != 0 && connectionStatus != 1) {
+							//此时网络未连接
+							var muxin_title = document.getElementById("muxin_title");
+							muxin_title.innerHTML="<b>慕信(未连接)</b>";
+						}else{
+							var muxin_title = document.getElementById("muxin_title");
+							muxin_title.innerHTML="<b>慕信</b>";
+						}
+				})
+			}
+		</script>
+	
+</body>
+</html>

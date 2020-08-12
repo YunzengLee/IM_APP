@@ -1,0 +1,498 @@
+<!doctype html>
+<html>
+
+	<head>
+		<meta charset="UTF-8">
+		<title></title>
+		<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+		<link href="css/mui.min.css" rel="stylesheet" />
+		<style>
+			html,
+			body {
+				height: 100%;
+			}
+			
+			.mui-content {
+				height: 100%;
+				overflow: auto;
+			}
+			
+			.red-point{            /* red-point这部分是设置未读消息的显示式样 */
+	          position: relative;
+	        }
+	
+	        .red-point::before{
+	          content: " ";
+	          border: 5px solid #C9394A;/*设置红色*/
+	          border-radius:5px;/*设置圆角*/
+	          position: absolute;
+	          z-index: 3000;
+	          right: 0%;
+	          margin-right: -10px;
+	          margin-top: 0px;
+	        }
+		</style>
+	</head>
+
+	<body>
+		
+		<div class="mui-content">
+		    <ul class="mui-table-view" id="ul_friend_request_list" style="margin-bottom: 10px;">
+					
+			</ul>
+			<ul id="ul_chatSnapshot" class="mui-table-view">
+				
+				<!--<li class="mui-table-view-cell mui-media">
+					<div class="mui-slider-right mui-disabled">
+						<a class="mui-btn mui-btn-red">删除</a>
+					</div>
+					<div class="mui-slider-handle mui-media-body">
+						<img class="mui-media-object mui-pull-left" src=""/>
+						<span class="red-point">朋友名</span>
+						<p class="mui-ellipsis">这里是聊天内容。。。</p>
+					</div>
+				</li>-->
+				
+			</ul>
+		</div>
+		
+		
+		
+		<script src="js/mui.min.js"></script>
+		<script src="js/app.js"></script>
+		<script type="text/javascript">
+			mui.init();
+			mui.plusReady(function(){
+				
+				//获取用户全局对象
+				var user = app.getUserGlobalInfo();
+				
+				//定义事件触发 加载好友请求记录
+				var thisWenview = plus.webview.currentWebview();
+				thisWenview.addEventListener("show",function(){  //一旦显示该页面，就去后台查找有没有好友申请的信息
+					console.log("加载好友请求列表。。");
+					loadingFriendRequest();
+				});
+				
+				//添加自定义事件，一旦页面refresh，就刷新好友请求.并初始化websocket
+				window.addEventListener("refresh",function(){
+					loadingFriendRequest();
+					CHAT.init();
+				});
+				
+				CHAT.init();
+				
+				
+				//为每个聊天快照绑定一个打开对应好友聊天页面的事件,也就是点击某个聊天快照 就可以打开对应的好友聊天页面
+				mui('#ul_chatSnapshot').on("tap",".chat-with-friend",function(e){
+					
+					//获取每个好友的属性值，这些属性值在li标签里可以找到，这些属性值需要带到与该好友的聊天页面中使用。
+					var friendUserId = this.getAttribute("friendUserId");
+					var friendNickname = this.getAttribute("friendNickname");
+					var friendFaceImage = this.getAttribute("friendFaceImage");
+					
+					//打开聊天子页面
+					mui.openWindow({
+						url: "chatting.html",
+						id: "chatting-" + friendUserId,  //每个朋友打开的聊天页面应该有个不同的id.
+						extras:{              //这个属性可以携带一些信息到下一个打开的页面上，此处是把单一好友的昵称头像等信息带到与该好友的聊天页面中
+							friendUserId:friendUserId,
+							friendNickname:friendNickname,
+							friendFaceImage:friendFaceImage
+						}
+					});
+					
+					//一旦打开了与某个朋友的聊天页面，那么对应的快照消息应当标记为已读
+					var me = app.getUserGlobalInfo();
+					//标记未读消息为已读
+					app.readUserChatSnapshot(me.id,friendUserId);
+					//渲染展示快照列表
+					loadingChatSnapshot();
+					
+				});
+				
+				
+				//批量绑定：左滑删除聊天快照和记录
+				mui("#ul_chatSnapshot").on("tap","#link_delChatRecord",function(e){
+					var me = this; //me就是这个ul_chatSnapshot 下的class为link_delChatRecord的a标签
+					//获取朋友id
+					var friendUserId = me.getAttribute("friendUserId");
+					
+					//1. 删除本地聊天记录
+					app.deleteUserChatHistory(user.id, friendUserId);
+					//2.删除本地聊天快照
+					app.deleteUserChatSnapshot(user.id, friendUserId);
+					//3. 移除当前用户操作的dom节点
+					var li = me.parentNode.parentNode;  //a标签的父标签的父标签就是li标签，需要删除这个li标签
+					var ul_chatSnapshot = document.getElementById("ul_chatSnapshot");
+					ul_chatSnapshot.removeChild(li);//执行删除，在ul标签中删除li标签
+				});
+				
+			});
+			
+			//构建聊天业务CHAT
+			window.CHAT = {
+				socket:null,
+				init:function(){
+					if(window.WebSocket){
+						
+						//如果当前状态已经连接，就不需要重复初始化websocket
+						if(CHAT.socket !=null 
+							&& CHAT.socket !=undefined
+						    && CHAT.socket.readyState == WebSocket.OPEN){
+						    	
+							return false;
+						}
+						
+						CHAT.socket = new WebSocket(app.nettyServerUrl);
+						CHAT.socket.onopen = CHAT.wsopen,
+						CHAT.socket.onclose = CHAT.wsclose,
+						CHAT.socket.onerror = CHAT.wserror,
+						CHAT.socket.onmessage = CHAT.wsmessage;
+					}else{
+						alert("手机设备过旧，请升级手机设备。。。");
+					}
+				},
+				chat:function(msg){  //这个函数在chatting.html中被执行
+					
+					//如果当前websocket被打开则直接发送
+					if(CHAT.socket !=null 
+							&& CHAT.socket !=undefined
+						    && CHAT.socket.readyState == WebSocket.OPEN){ //只有在建立了连接下才可以发送消息。
+						    CHAT.socket.send(msg);//发送消息
+							
+						}else{  //如果websocket没有打开，就重连。
+							//这是为了，如果服务器关闭了，那么就无法发送消息，如果服务器又重新启动了，那么此时点击发送消息，
+							//就应当重新建立websocket连接，然后发送。如果不建立连接，尽管服务器已经启动，也还是无法发送消息。
+							CHAT.init();//建立websocket连接，后再重新发送消息
+							setTimeout("CHAT.reChat('"+ msg+"')", "1000");//1秒后执行CHAT.reChat方法
+							//以上两句代码是非阻塞的，所以中间需要一段延时
+							
+						}
+						
+					//渲染快照列表进行展示
+					loadingChatSnapshot();
+				},
+				reChat:function(msg){
+					console.log("消息重新发送");
+					CHAT.socket.send(msg);
+				},
+				wsopen:function(){
+					console.log("websocket连接已建立");
+					
+					//这一段是发送给后端一个消息（DataContent类型），标志着本用户建立了websocket连接，让后端将该channel和该用户id绑定一下，做一个记录
+					var me = app.getUserGlobalInfo();
+					//构建ChatMsg
+					var chatMsg = new app.ChatMsg(me.id,null,null,null);
+					//构建DataContent
+					var dataContent = new app.DataContent(app.CONNECT, chatMsg, null);
+					//发送websocket
+					CHAT.chat(JSON.stringify(dataContent));
+					
+					//每次建立连接，都要主动向后端请求一次 在本用户离线时期，由其他朋友发送来的消息
+					fetchUnReadMsg();
+					
+					//定时执行CHAT.keepalive(),发送心跳包
+					setInterval("CHAT.keepalive()", 50*1000); //50秒发送一次
+					
+				},
+				wsmessage:function(data){
+					console.log("接收到消息"+data.data);
+					
+					//转换DataContent为对象
+					var dataContent = JSON.parse(data.data);
+					var action = dataContent.action;
+					if (action === app.PULL_FRIEND){
+						//拉取好友列表
+						fetchContactList();
+						return false; //此时直接返回即可，不处理下面的内容了
+					}
+					
+					//如果处理到这一步，说明收到的消息不是 PULL_FRIEND类型，而是接收到的 聊天消息，继续往下处理,渲染聊天记录
+					var chatMsg = dataContent.chatMsg;
+					var msg = chatMsg.msg;
+					
+					
+					//调用chatting页面的receiveMsg方法
+					//chatting-[friednUserId] 
+//					var chatWebview = plus.webview.getWebviewById("chatting-200511BZ0GPY31GC");
+					//作为消息的接受收者，首先获取消息中的发送者id信息，也就是朋友的id，然后找到对应的webview页面
+					var friendUserId = chatMsg.senderId;
+					var chatWebview = plus.webview.getWebviewById("chatting-"+friendUserId);
+					// 但是作为接收者，可能只是突然收到朋友的信息，还没有创建与该朋友的聊天webview（这个webview的id是chatting-朋友id）
+					// 因此需要判断，如果页面存在，说明接收者正在跟朋友聊天，如果不存在，说明接收者是第一次收到朋友信息
+
+					var isRead = true;//设置聊天消息默认为已读，这个变量是聊天快照信息的一个属性
+					if (chatWebview != null){
+						//在webview不为空的情况下，直接将消息渲染到页面上	
+						chatWebview.evalJS("receiveMsg('"+msg +"')");
+						chatWebview.evalJS("resizeScreen()");//接收到消息后需要再进行一次页面的resize，使页面上移，接收到的消息能够显示
+					}else{ //如果与该朋友的webview窗口不存在，说明用户只是突然接收到了好友信息
+						isRead = false; //聊天窗口未打开，标记消息为未读
+							//待完成
+					}
+					
+					//接收消息后，对消息进行签收，也就是向后端表示接收方用户手机已经收到，去改变数据库中该消息的签收状态
+					//（只是说明手机设备收到了消息，不保证人类用户已经读到该消息）
+					var dataContentSign = new app.DataContent(app.SIGNED,null,chatMsg.msgId); // 第一个参数表示消息类型为签收类型，第二个参数为消息内容，由于是对发送来的消息进行签收，因此设为空，第三个参数是附带上签收消息的id
+					CHAT.chat(JSON.stringify(dataContentSign)); //发给后端
+					
+					//保存聊天历史记录到本地
+					app.saveUserChatHistory(myId,friendUserId,msg, 2);//朋友发送的就是2
+					app.saveUserChatSnapshot(myId,friendUserId,msg,isRead);//保存快照信息
+					//渲染快照列表进行展示
+					loadingChatSnapshot(); //由于快照更改了，要重新读取快照信息，刷新在页面上
+					//现在的问题：消息太长的话不会自动换行。
+				},
+				wsclose:function(){
+					console.log("连接关闭");
+				},
+				wserror:function(){
+					console.log("发生错误");
+				},
+				
+				signMsgList: function(unSignedMsgIds){  //这个函数是当用户上线时，读取了大量离线时接收的消息，需要对这些消息进行签收
+					//构建批量签收对象的模型
+					var dataContentSign = new app.DataContent(app.SIGNED, 
+					                                          null,
+					                                           unSignedMsgIds);
+					//模型构建完毕，向后端发送批量签收的请求
+					CHAT.chat(JSON.stringify(dataContentSign));
+				},
+				keepalive: function(){  //不断向后端发送心跳包，让后端知道我们一直在线，
+					                   //如果没有网络的话就无法发送，后端就知道我们掉线，就可以移除我们的channel，节省资源
+					//构建对象
+					var dataContent = new app.DataContent(app.KEEPALIVE,null,null);
+					//发送心跳
+					CHAT.chat(JSON.stringify(dataContent));
+					
+					//定时执行函数
+					fetchUnReadMsg(); //为什么要定时执行获取未签收消息的函数呢？此处既然函数是定时执行的，那么用户一定一直在线，不应该有未签收的消息啊
+					fetchContactList(); //此处定时执行 获取联系人列表的函数，是为了在线期间定时更新好友头像等信息
+				},
+				
+			};
+			
+			//每次重连后调用，从服务器端获取未签收的消息
+			function fetchUnReadMsg(){
+				var user = app.getUserGlobalInfo();
+				
+				var msgIds = ",";  //格式：   ,1001,1002,1003,
+				mui.ajax(app.serverUrl + "/u/getUnReadMsgList?acceptUserId="+user.id,{
+							data:{},//不需要使用json对象去传值，所以data为空即可，参数已经放在了url上
+							dataType:'json',//服务器返回json格式数据
+							type:'post',//HTTP请求类型
+							timeout:10000,//超时时间设置为10秒；
+							headers:{'Content-Type':'application/json'},	              
+							success:function(data){
+								//服务器返回的data是json包
+								//服务器返回响应
+								
+								if (data.status == 200) {
+									//
+									console.log("从后端获取的离线期间传来的消息：");
+									console.log(JSON.stringify(data.data));
+									var unReadMsgList = data.data;
+									
+									
+									//1. 保存聊天记录到本地
+									//2.保存聊天快照到本地
+									//3.对这些消息批量签收
+									for (var i=0;i<unReadMsgList.length;i++){
+										var msgObj = unReadMsgList[i];
+										//逐条存入聊天记录
+										app.saveUserChatHistory(msgObj.acceptUserId, msgObj.sendUserId, msgObj.msg,2); //2代表是朋友发送的
+										app.saveUserChatSnapshot(msgObj.acceptUserId, msgObj.sendUserId, msgObj.msg, false);//保存快照信息，保存为未读状态
+										
+										//接下来要对这些消息进行批量签收
+										//在这个for循环中，拼接批量签收消息的id字符串，逗号间隔
+										msgIds += msgObj.id;
+										msgIds += ",";
+										
+									}
+									
+									CHAT.signMsgList(msgIds);//调用批量签收方法，传入拼接好的信息id，向后端发起请求，更改服务器中这些消息的状态为已签收
+									
+									//获取了离线时期接收到的消息后，需要刷新聊天快照列表
+									loadingChatSnapshot();
+									
+									
+									
+								} else {
+									app.showToast(data.msg, "error");
+								}
+							}
+						});
+			
+				
+			}
+			
+			//展示聊天快照，渲染到页面上，也就是微信的第一个页面，每个好友的最近一条信息都会展示出来
+			function loadingChatSnapshot(){
+				var user = app.getUserGlobalInfo();
+				var chatSnapshotList  = app.getUserChatSnapshot(user.id);
+				var chatItemHtml = '';
+				var ul_chatSnapshot = document.getElementById("ul_chatSnapshot");
+				ul_chatSnapshot.innerHTML='';
+				for (var i=0;i<chatSnapshotList.length;i++){  //对于每一个朋友做一个循环
+					var chatItem = chatSnapshotList[i];
+					var friendId = chatItem.friendId;
+					//根据friendId从本地联系人列表的缓存中拿到相关信息
+					var friend =  app.getFriendFromContactList(friendId);
+					
+					//判断消息是已读还是未读，未读消息的快照显示时需要在朋友名字上带一个红点
+					var isRead = chatItem.isRead;
+					var readHtmlBefore = "";
+					var readHtmlAfter = "";
+					if(!isRead){
+						readHtmlBefore = '<span class="red-point">';
+						readHtmlAfter = '</span>';
+					}
+//					<span class="red-point">朋友名</span>
+					console.log(JSON.stringify(friend));
+					chatItem =	'<li friendUserId="'+ friendId+ '" friendNickname="'+friend.friendNickname+ '" friendFaceImage="'+friend.friendFaceImage +'" class="chat-with-friend mui-table-view-cell mui-media">'+
+									'<div class="mui-slider-right mui-disabled">'+   //这个div是为每个聊天快照添加一个左滑就出现一个红色删除按钮的效果
+										'<a id="link_delChatRecord" friendUserId="'+ friendId +'" class="mui-btn mui-btn-red">删除</a>'+
+									'</div>'+
+									
+									'<div class="mui-slider-handle mui-media-body">'+  //注意这个div的class有个 mui-slider-handle，标志着这个div能触发左滑效果
+										'<img class="mui-media-object mui-pull-left" src="' + app.imgServerUrl+friend.friendFaceImage + '"/>'+
+										readHtmlBefore + friend.friendNickname + readHtmlAfter +
+										'<p class="mui-ellipsis">'+chatItem.msg +'</p>'+
+									'</div>'+
+								'</li>';
+					ul_chatSnapshot.insertAdjacentHTML('beforeend',chatItem); //将每一条朋友的快照插入到页面中
+				}
+			}
+			
+			
+			//获取后端的好友列表
+			function fetchContactList(){
+				
+				var user = app.getUserGlobalInfo();
+				mui.ajax(app.serverUrl + "/u/myFriends?userId="+user.id,{
+							data:{},//不需要使用json对象去传值，所以data为空即可，参数已经放在了url上
+							dataType:'json',//服务器返回json格式数据
+							type:'post',//HTTP请求类型
+							timeout:10000,//超时时间设置为10秒；
+							headers:{'Content-Type':'application/json'},	              
+							success:function(data){
+								//服务器返回的data是json包
+								//服务器返回响应
+								
+								if (data.status == 200) {
+									//
+									console.log("从后端获取的好友列表：");
+									console.log(JSON.stringify(data.data));
+									var contactList = data.data;
+									app.setContactList(contactList);//保存到本地
+									
+								} else {
+									app.showToast(data.msg, "error");
+								}
+							}
+						})
+				
+			}
+			
+			
+			//加载好友请求列表
+			function loadingFriendRequest(){
+				//获取用户全局对象
+				var user = app.getUserGlobalInfo();
+				
+				//查询该用户的好友请求
+				mui.ajax(app.serverUrl + "/u/queryFriendRequests?userId="+user.id, {
+						data:{},
+						dataType:'json',//服务器返回json格式数据
+						type:'post',//HTTP请求类型
+						timeout:10000,//超时时间设置为10秒；
+						headers:{'Content-Type':'application/json'},	              
+						success:function(data){
+							//服务器返回响应
+							console.log(JSON.stringify(data.data));
+							
+							if (data.status == 200) {
+								var friendRequestList = data.data;
+								var ul_friend_request_list = document.getElementById("ul_friend_request_list");
+								if(friendRequestList!=null && friendRequestList.length>0){
+									var requestHtml = "";
+									for (var i=0;i<friendRequestList.length;i++){ //拼接好友申请的html显示部分
+										requestHtml += renderFriendRequests(friendRequestList[i]);
+									}
+									ul_friend_request_list.innerHTML = requestHtml; //显示在html上
+									
+									// 动态对两个按钮进行事件绑定 ，（通过和忽略按钮）
+									mui(".btnOper").on("tap",".ignoreRequest",function(e){
+										var friendId = this.getAttribute("friendId");
+										operatorFriendRequest(user.id, friendId, 0);
+									});
+									
+									mui(".btnOper").on("tap",".passRequest",function(e){
+										var friendId = this.getAttribute("friendId");
+										operatorFriendRequest(user.id, friendId, 1);
+									});
+									
+								} else{
+									ul_friend_request_list.innerHTML = "";
+								}
+								
+							} else {
+								app.showToast(data.msg, "error");
+							}
+						}
+					});
+				
+			}
+			
+			//操作好友申请（忽略或通过）
+			function operatorFriendRequest(userId,friendId,operType){
+				console.log(friendId);
+				
+				mui.ajax(app.serverUrl + "/u/operFriendRequest?acceptUserId="+userId
+										+"&sendUserId="+friendId
+										+ "&operType="+operType, {
+						data:{},
+						dataType:'json',//服务器返回json格式数据
+						type:'post',//HTTP请求类型
+						timeout:10000,//超时时间设置为10秒；
+						headers:{'Content-Type':'application/json'},	              
+						success:function(data){  //服务器返回响应
+							
+							//通讯录，好友申请通过后，应当更新通讯录，后端返回的data正是更新后的通讯录
+							var myFriendList =data.data;
+							app.setContactList(myFriendList);//保存到本地
+							// 此处需要注意！！！好友申请的接收方在添加好友后及时的更新了通讯录，但发送方还没有，这个要通过websocket来实现。
+							
+							
+							//重新加载好友请求列表，因为刚刚处理过了一条好友请求，需要刷新
+							loadingFriendRequest();
+						}
+					});
+				
+			}
+			
+			//用于拼接单个好友的请求
+			function renderFriendRequests(friend){
+				
+				var html = "";
+				html = '<li class="btnOper mui-table-view-cell mui-media">'+
+							'<a href="javascript:;">'+
+								'<img class="mui-media-object mui-pull-left" src="'+ app.imgServerUrl+friend.sendFaceImage +'"/>'+
+								'<span id="span_nickname" class="mui-pull-right">'+
+									'<button friendId="'+friend.sendUserId+'" type="button" class="ignoreRequest mui-btn mui-btn-grey" style="padding: 4px 10px;margin-right: 5px;margin-top: 6px;">忽略</button>'+
+									'<button friendId="'+friend.sendUserId+'" type="button" class="passRequest mui-btn mui-btn-danger" style="padding: 4px 10px;margin-top: 6px;">通过</button>'+
+								'</span>'+
+								'<div class="mui-media-body">'+
+									'<label>'+friend.sendNickname+'</label>'+
+									'<p class="mui-ellipsis">请求添加你为朋友</p>'+
+								'</div>'+
+							'</a>'+
+						'</li>';
+				
+				return html;
+			}
+		</script>
+	</body>
+
+</html>

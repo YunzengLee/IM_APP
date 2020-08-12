@@ -1,0 +1,12 @@
+.title{
+	background-color: #c9394a;
+}
+
+.title-color{
+	color: white;
+}
+
+/*更改底部导航栏选中时呈现的颜色*/
+.mui-bar-tab .mui-tab-item.mui-active{
+	color: #c9394a;
+}
