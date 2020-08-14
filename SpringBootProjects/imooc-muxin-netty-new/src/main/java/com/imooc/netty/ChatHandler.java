@@ -32,7 +32,7 @@ public class ChatHandler extends SimpleChannelInboundHandler<TextWebSocketFrame>
 		String content = msg.text();//获取客户端传输过来的字符串
 		System.out.println("接受到的数据："+content);
 		Channel currentChannel = ctx.channel();
-		//接下来需要处理字符串，转化为一些实体类，在当前包下写一些实体类
+		//接下来需要处理字符串，转化为一些实体类，在当前包下写一些实体类： DataContent  ChatMsg
 
 		//1. 获取客户端发来的消息
 		DataContent dataContent = JsonUtils.jsonToPojo(content,DataContent.class);//把字符串转换为一个类
@@ -73,8 +73,8 @@ public class ChatHandler extends SimpleChannelInboundHandler<TextWebSocketFrame>
 			//此处应该是一个发送的操作,将chatMsg发送给接受者，接收者根据其中的msgId进行签收。
 			Channel receiverChannel = UserChannelRelationship.get(receiverId);//找到接收者与本服务器的channel，把消息发到该channel上
 			if(receiverChannel == null){
-				//channel为空代表用户离线，推送消息（使用第三方工具：JPUSh，个推，小米推送）
-                //待完成
+				//channel为空代表用户离线，应当推送消息（使用第三方工具：JPUSh，个推，小米推送）
+                //但是本项目的处理是，用户上线时自动去数据库查询一次未接收的消息，然后拉取到本地
 
 
 			}else{
@@ -87,7 +87,8 @@ public class ChatHandler extends SimpleChannelInboundHandler<TextWebSocketFrame>
 									JsonUtils.objectToJson(dataContentMsg)));
 							//将chatMsg转为json字符串后发送
 				}else{
-					//用户离线 推送消息  待完成
+					//用户离线 推送消息。
+					//与上面同理，不主动推送，等用户上线时由用户自己去数据库读取未接收的消息。
 
 				}
 			}
@@ -95,7 +96,7 @@ public class ChatHandler extends SimpleChannelInboundHandler<TextWebSocketFrame>
 
 		}else if(action == MsgActionEnum.SIGNED.type) {
 			//2.3 签收消息类型，针对具体的消息进行签收，实际就是修改数据库中消息的签收状态
-				//签收并不是指接收消息的用户已经查看了消息，而是指接收方的手机收到了消息，类似于人签收了快递，但是打没打开是自己是事
+				//签收并不是指接收消息的用户已经查看了消息，而是指接收方的手机收到了消息，类似于人签收了快递，但是打没打开是自己的事
 			UserService userService = (UserService) SpringUtil.getBean("userServiceImpl");//如果不去定义service的名字，spring会把类名第一个字母小写后作为名字
 			//扩展字段在signed类型的消息中代表需要去签收的消息的id
 			String msgIdStr = dataContent.getExtand();//dataContent的extend里存放的是消息id，如果有多条消息就用用逗号间隔。

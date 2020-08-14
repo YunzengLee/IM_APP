@@ -26,7 +26,7 @@ public class WSServer {
     private ServerBootstrap server;
     private ChannelFuture future;
 
-    public WSServer(){
+    public WSServer(){ //构造方法
         //定义一对线程组
         mainGroup = new NioEventLoopGroup();
         subGroup = new NioEventLoopGroup();
