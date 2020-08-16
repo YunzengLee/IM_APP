@@ -133,7 +133,7 @@
 				document.addEventListener("netchange",function(){
 					// 判断网络的状态，本函数会返回一个数字代表网络的状态，
 						var connectionStatus = plus.networkinfo.getCurrentType();
-						if (connectionStatus != 0 && connectionStatus != 1) {
+						if (connectionStatus !== 0 && connectionStatus !== 1) {
 							//此时网络未连接
 							var muxin_title = document.getElementById("muxin_title");
 							muxin_title.innerHTML="<b>慕信(未连接)</b>";
