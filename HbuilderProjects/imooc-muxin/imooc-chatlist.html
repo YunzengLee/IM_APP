@@ -137,9 +137,9 @@
 					if(window.WebSocket){
 						
 						//如果当前状态已经连接，就不需要重复初始化websocket
-						if(CHAT.socket !=null 
-							&& CHAT.socket !=undefined
-						    && CHAT.socket.readyState == WebSocket.OPEN){
+						if(CHAT.socket !==null
+							&& CHAT.socket !==undefined
+						    && CHAT.socket.readyState === WebSocket.OPEN){
 						    	
 							return false;
 						}
@@ -156,9 +156,9 @@
 				chat:function(msg){  //这个函数在chatting.html中被执行
 					
 					//如果当前websocket被打开则直接发送
-					if(CHAT.socket !=null 
-							&& CHAT.socket !=undefined
-						    && CHAT.socket.readyState == WebSocket.OPEN){ //只有在建立了连接下才可以发送消息。
+					if(CHAT.socket !==null
+							&& CHAT.socket !==undefined
+						    && CHAT.socket.readyState === WebSocket.OPEN){ //只有在建立了连接下才可以发送消息。
 						    CHAT.socket.send(msg);//发送消息
 							
 						}else{  //如果websocket没有打开，就重连。

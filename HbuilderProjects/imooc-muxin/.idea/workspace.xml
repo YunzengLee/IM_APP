@@ -21,7 +21,7 @@
   <component name="ChangeListManager">
     <list default="true" id="0f48f880-7b2d-4655-8460-720d59d010c8" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/index.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/imooc-chatlist.html" beforeDir="false" afterPath="$PROJECT_DIR$/imooc-chatlist.html" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -54,6 +54,7 @@
       <workItem from="1596351887725" duration="6601000" />
       <workItem from="1597462332794" duration="8341000" />
       <workItem from="1597559373922" duration="443000" />
+      <workItem from="1598236470571" duration="4298000" />
     </task>
     <servers />
   </component>
